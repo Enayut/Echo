@@ -24,7 +24,7 @@ Changed your mind? Press `Esc` to start a 3-second countdown that throws the rec
 | **1. Record** | Captures your microphone and saves the audio to disk as you speak, so a recording is never lost even if something crashes. |
 | **2. Detect speech** | A voice-activity model (Silero VAD) splits the audio into speech segments and skips the silence. |
 | **3. Transcribe** | The speech model (Parakeet) turns each segment into punctuated, capitalized text. It starts while you are still talking, so the text is ready almost as soon as you stop. |
-| **4. Clean up** | Rules remove fillers ("um", "uh"), repeated words and spacing mistakes, write spoken numbers as digits ("twenty five" → "25"), and apply your dictionary spellings. If grammar polish is on, a local language model then smooths the wording. |
+| **4. Clean up** | Rules remove fillers ("um", "uh"), repeated words and spacing mistakes, apply your dictionary spellings, and write what you said the way you'd type it: numbers, amounts, emails, web addresses, symbols and numbered lists (see [Smart formatting](#smart-formatting)). If grammar polish is on, a local language model then smooths the wording without undoing any of that. |
 | **5. Deliver** | The text is pasted into the window you were using and kept on your clipboard. If that window can't accept a paste (for example an app running as administrator), Echo copies the text and tells you to press `Ctrl+V`. |
 | **6. Save** | The take is saved to History, where you can search it, copy it or re-run it. Your Dashboard stats are updated. |
 
@@ -33,7 +33,8 @@ All six steps run on your computer. Nothing is sent over the internet.
 ## Features
 
 - **Fast local recognition** — NVIDIA Parakeet TDT 0.6B v3 (int8 ONNX) on ONNX Runtime. Runs on the CPU, with optional GPU acceleration through DirectML. Supports 25 languages with automatic punctuation and capitalization.
-- **Text cleanup** — a rule pass that is always on removes filler words and repeats, writes spoken numbers as digits, and fixes spacing and casing. An optional grammar polish uses a local Qwen3 1.7B model through llama.cpp.
+- **Text cleanup** — a rule pass that is always on removes filler words and repeats and fixes spacing and casing. An optional grammar polish uses a local Qwen3 1.7B model through llama.cpp.
+- **Smart formatting** — spoken numbers, amounts, emails, web addresses, symbols and lists come out written, not spelled out (below).
 - **Personal dictionary** — save names, jargon and spellings so they come out right every time.
 - **Works in any app** — text is inserted into the focused window. Paste the last transcript again at any time with `Ctrl+Alt+V`.
 - **Never lose a take** — audio is written to disk while you speak. If anything fails or crashes, the recording is still in History and can be re-run.
@@ -42,6 +43,18 @@ All six steps run on your computer. Nothing is sent over the internet.
 - **Model manager** — download, import from a folder or switch speech and polish models.
 - **Customizable** — hold-to-talk or toggle mode, rebindable hotkeys, microphone choice, sound cues, pill position, light/dark/system theme, launch at startup, start in the tray.
 - **Offline mode** — one switch to guarantee Echo never touches the network.
+
+## Smart formatting
+
+| You say | Echo types |
+|---|---|
+| "twenty five", "ten thirty", "three point five", "fifty percent" | `25`, `10:30`, `3.5`, `50%` |
+| "twenty five dollars and fifty cents", "two hundred rupees" | `$25.50`, `₹200` |
+| "john at gmail dot com", "google dot com slash docs" | `john@gmail.com`, `google.com/docs` |
+| "snake underscore case", "hashtag launch", "open bracket x close bracket" | `snake_case`, `#launch`, `(x)` |
+| "The list is as follows. First apple, second oranges, third mangoes." | `The list is as follows`<br>`1. apple`<br>`2. oranges`<br>`3. mangoes` |
+
+Rules only fire on a clear match, so everyday phrases ("five apples", "wait a second", "look at that") stay as spoken. **Spoken symbols** and **Format spoken lists** can be turned off in **Settings → Cleanup**.
 
 ## Hotkeys
 
@@ -66,20 +79,53 @@ There are no prebuilt releases — Echo is built from source.
 ### Requirements
 
 - Windows 10 (1809 or later) or Windows 11, x64
+- [Git](https://git-scm.com)
 - [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) with **Desktop development with C++** and the **Windows SDK**
 - [Rust](https://rustup.rs) — the exact toolchain is pinned in `src-tauri/rust-toolchain.toml` and installed automatically by rustup
 - [Node.js](https://nodejs.org) 22.13 or later
 - [pnpm](https://pnpm.io) 11
 
-### Run and build
+### 1. Install the tools (one time)
+
+In PowerShell:
 
 ```powershell
+winget install --id Git.Git -e
+winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+winget install --id Rustlang.Rustup -e
+winget install --id OpenJS.NodeJS.LTS -e
+```
+
+Close and reopen PowerShell so the new tools are on your `PATH`, then:
+
+```powershell
+npm install -g pnpm@11
+```
+
+### 2. Get the code and install dependencies
+
+```powershell
+git clone https://github.com/traveller318/Echo.git
+cd Echo
 pnpm install
+```
+
+The first Rust build downloads the pinned toolchain and compiles every crate, so it takes several minutes.
+
+### 3. Run or install
+
+```powershell
 pnpm tauri dev      # run the app in development mode
 pnpm tauri build    # build an installer into src-tauri/target/release/bundle/nsis/
 ```
 
-The installer is per-user, so it needs no admin rights. It is not code-signed, so Windows SmartScreen may warn you — choose **More info → Run anyway**.
+To install it as a normal desktop app, run the built installer:
+
+```powershell
+& (Get-ChildItem src-tauri\target\release\bundle\nsis\*-setup.exe | Select-Object -First 1).FullName
+```
+
+The installer is per-user, so it needs no admin rights, and it adds Start menu and desktop shortcuts. It is not code-signed, so Windows SmartScreen may warn you — choose **More info → Run anyway**.
 
 On first launch, a short setup picks your microphone, downloads the speech model (or imports it from a folder) and lets you try a first dictation.
 
