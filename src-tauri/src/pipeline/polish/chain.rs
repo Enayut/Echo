@@ -8,7 +8,8 @@
  *        and is reported as a fallback. Instant stages are awaited directly: they are synchronous work behind a
  *        ready future, which a timer could not interrupt anyway. A stage whose caps exclude the take's language is
  *        skipped, not failed. A model stage (`needs_model`) whose answer lost a dictionary spelling its input held
- *        is not used either, so the user's swaps survive grammar polish on every take. A stage that could not be built is reported on every take, so the session can say
+ *        is not used either, so the user's swaps survive grammar polish on every take; the same holds for an answer
+ *        that lost an email, web address, amount or symbol the rules wrote. A stage that could not be built is reported on every take, so the session can say
  *        why grammar polish did nothing, and is retried by the next build. Rebuilding after a settings change keeps
  *        the Arc of every stage whose id is unchanged, so a running sidecar is not restarted. Fallback details are
  *        logged here, never the text (02 §12).
@@ -18,7 +19,7 @@
 
 use std::sync::Arc;
 
-use super::dictionary_guard::keeps_dictionary_terms;
+use super::{dictionary_guard::keeps_dictionary_terms, written_forms_guard::keeps_written_forms};
 use crate::{
     ports::TextPolisher,
     registry::{self, engines::BuildCtx},
@@ -226,6 +227,13 @@ impl PolishChain {
                     "polish stage changed a dictionary term; kept the previous text"
                 );
                 Err(PolishFallbackReason::DictionaryTermLost)
+            }
+            Ok(polished) if stage.caps.needs_model && !keeps_written_forms(text, &polished) => {
+                tracing::warn!(
+                    engine = %stage.id,
+                    "polish stage changed a written address, amount or symbol; kept the previous text"
+                );
+                Err(PolishFallbackReason::WrittenFormLost)
             }
             Ok(polished) => Ok(polished),
             Err(error) => {

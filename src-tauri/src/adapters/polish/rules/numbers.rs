@@ -1,10 +1,11 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: numbers stage, spoken numbers to digits, write_numbers, number words, inverse text normalization, clock time, spoken year, ordinal suffix, percent, decimal point
+ * SOURCE OF TRUTH KEYWORDS: numbers stage, spoken numbers to digits, write_numbers, number words, inverse text normalization, clock time, spoken year, ordinal suffix, percent, decimal point, currency amount
  * WHAT:  `write_numbers` rewrites spoken number phrases in digits with the lexicon's NumberWords: "twenty five" →
  *        "25", "one thousand five hundred twenty three" and "fifteen twenty three" → "1523", "ten thirty" →
  *        "10:30", "three point five" → "3.5", "fifty percent" → "50%", "twenty first" → "21st", "two million" →
- *        "2 million", "ten thousand" → "10,000".
- * WHY:   Stage 5 of 02 §8.3. Speech engines (Parakeet) spell numbers out; a typist writes digits. Only a whole
+ *        "2 million", "ten thousand" → "10,000", and amounts with their currency symbol: "five dollars" → "$5",
+ *        "twenty five dollars and fifty cents" → "$25.50", "two hundred rupees" → "₹200", "5 euros" → "€5".
+ * WHY:   Stage 7 of 02 §8.3. Speech engines (Parakeet) spell numbers out; a typist writes digits. Only a whole
  *        phrase the reader understands is rewritten, anything else stays as spoken. A lone word below `digits_from`
  *        stays a word ("one of them", "five apples"), a phrase ending in an ambiguous ordinal stays ("a twenty
  *        second clip"), and an article with one scale word stays ("a hundred people"), because only a longer phrase
@@ -12,14 +13,18 @@
  *        fifty" stays two numbers) and a tens word joins its unit across a hyphen ("twenty-five"). Two one-word
  *        numbers in a row are a clock time or a year, never a sum. The digits are re-tokenized, so later stages
  *        see "3.5" and "10:30" exactly as if the engine had written them. Values use checked arithmetic: a phrase
- *        too large for u64 stays in words.
+ *        too large for u64 stays in words. A currency word works like the percent word, so it proves even a lone
+ *        small number was dictated ("five dollars" → "$5", "five apples" stays); its minor unit joins only right
+ *        after it ("and fifty cents"). Digits the engine already wrote take the symbol too ("5 dollars" → "$5"),
+ *        so "$5" is the same however the engine spelled it. A clock-or-year pair before a currency word
+ *        ("nineteen ninety nine dollars": $1999 or $19.99?) stays as spoken.
  * WHERE: RulePolisher::apply (rules/mod.rs), after repeats (which keep doubled number words) and lists, before
  *        spacing and casing, when the take's lexicon has NumberWords.
  */
 
 use super::{
-    lexicon::NumberWords,
-    text::{Token, tokenize},
+    lexicon::{CurrencyWords, NumberWords},
+    text::{Token, render, tokenize},
 };
 
 /// What a number word does in a phrase, decided by its value.
@@ -77,6 +82,10 @@ struct Number {
     scale_word: Option<usize>,
     ordinal: Option<&'static str>,
     percent: bool,
+    /// The currency named after the amount.
+    currency: Option<&'static CurrencyWords>,
+    /// The minor-unit amount said after the currency ("and fifty cents").
+    minor: Option<u64>,
     /// Words read, the article included.
     words: usize,
     /// The phrase opens with an article standing for 1 ("a hundred and ten").
@@ -91,7 +100,10 @@ pub fn write_numbers(tokens: &[Token], numbers: &NumberWords) -> Vec<Token> {
     let mut out = Vec::with_capacity(tokens.len());
     let mut index = 0;
     while index < tokens.len() {
-        if let Some((written, last)) = reader.digits_at(index) {
+        if let Some((written, last)) = reader
+            .digits_at(index)
+            .or_else(|| reader.written_amount(index))
+        {
             out.extend(tokenize(&written));
             index = last + 1;
         } else {
@@ -112,7 +124,7 @@ impl Reader<'_> {
     /// The digits for the phrase starting at `index`, and the index of its last token.
     fn digits_at(&self, index: usize) -> Option<(String, usize)> {
         let number = self.number(index)?;
-        self.clock_or_year(&number).or_else(|| {
+        self.clock_or_year(index, &number).or_else(|| {
             self.worth_digits(&number)
                 .then(|| (self.write(&number), number.last))
         })
@@ -169,7 +181,7 @@ impl Reader<'_> {
                         number.whole = group.value;
                         number.scale_word = Some(at);
                     }
-                    return Some(self.with_percent(number));
+                    return Some(self.with_unit(number));
                 }
             }
         }
@@ -185,10 +197,10 @@ impl Reader<'_> {
                 number.scale_word = Some(at);
                 number.last = at;
                 number.words += 1;
-                return Some(number);
+                return Some(self.with_unit(number));
             }
         }
-        Some(self.with_percent(number))
+        Some(self.with_unit(number))
     }
 
     /// An article standing for 1 when the hundred or a scale follows it ("a hundred", "a million").
@@ -320,19 +332,89 @@ impl Reader<'_> {
         (!digits.is_empty()).then_some((digits, last, words))
     }
 
-    /// `number` with the percent word after it, when there is one.
-    fn with_percent(&self, mut number: Number) -> Number {
-        if number.ordinal.is_none()
-            && number.scale_word.is_none()
-            && let Some(at) = self
-                .next_word(number.last, false)
-                .filter(|at| self.is(*at, self.numbers.percent))
-        {
-            number.percent = true;
-            number.last = at;
-            number.words += 1;
+    /// `number` with the percent word or a currency word (and its minor amount) after it, when there is one.
+    fn with_unit(&self, mut number: Number) -> Number {
+        if number.ordinal.is_some() {
+            return number;
         }
+        let Some(at) = self.next_word(number.last, false) else {
+            return number;
+        };
+        if number.scale_word.is_none() && self.is(at, self.numbers.percent) {
+            number.percent = true;
+        } else if let Some(currency) = self.currency(at) {
+            number.currency = Some(currency);
+            if number.fraction.is_empty()
+                && number.scale_word.is_none()
+                && let Some((minor, last, words)) = self.minor(at, currency)
+            {
+                number.minor = Some(minor);
+                number.last = last;
+                number.words += 1 + words;
+                return number;
+            }
+        } else {
+            return number;
+        }
+        number.last = at;
+        number.words += 1;
         number
+    }
+
+    /// The currency the word at `index` names.
+    fn currency(&self, index: usize) -> Option<&'static CurrencyWords> {
+        let token = self.tokens.get(index).filter(|token| token.is_word())?;
+        self.numbers.currency(&token.folded())
+    }
+
+    /// The minor amount after the currency word at `at` ("and fifty cents"): its value, last index and words read.
+    fn minor(&self, at: usize, currency: &CurrencyWords) -> Option<(u64, usize, usize)> {
+        let (group, joined) = self.addend(at, |start| self.below_100(start))?;
+        if group.ordinal.is_some() || group.value >= 10u64.pow(currency.minor_digits) {
+            return None;
+        }
+        let unit = self.next_word(group.last, false).filter(|unit| {
+            self.tokens
+                .get(*unit)
+                .is_some_and(|token| currency.minor_names.contains(&token.folded().as_str()))
+        })?;
+        Some((group.value, unit, joined + group.words + 1))
+    }
+
+    /**
+     * SOURCE OF TRUTH KEYWORDS: written amount, digits with currency word, 5 dollars, engine digits, currency symbol prefix
+     * WHAT:  When the engine already wrote the digits ("5", "1,500", "3.5") and a currency word follows, the amount
+     *        with the currency symbol ("$5", "₹1,500") and the index of the currency word.
+     * WHY:   Parakeet writes some amounts in digits and others in words; both must end as "$5". The digits are kept
+     *        exactly as written (separators included). Only digits that start a word count, so "v2 dollars" and
+     *        "$5 dollars" (already written with its symbol) are left alone.
+     * WHERE: write_numbers, when no spoken number phrase starts at `index`.
+     */
+    fn written_amount(&self, index: usize) -> Option<(String, usize)> {
+        let is_digits = |at: usize| {
+            self.tokens.get(at).is_some_and(|token| {
+                token.is_word() && token.text.chars().all(|c| c.is_ascii_digit())
+            })
+        };
+        let starts_free = index == 0 || self.tokens.get(index - 1).is_some_and(Token::is_space);
+        if !starts_free || !is_digits(index) {
+            return None;
+        }
+        let numbers = self.numbers;
+        let mut last = index;
+        while self
+            .tokens
+            .get(last + 1)
+            .and_then(Token::punct)
+            .is_some_and(|c| c == numbers.group_separator || c == numbers.decimal_separator)
+            && is_digits(last + 2)
+        {
+            last += 2;
+        }
+        let at = self.next_word(last, false)?;
+        let currency = self.currency(at)?;
+        let digits = render(&self.tokens[index..=last]);
+        Some((with_symbol(digits, currency), at))
     }
 
     /**
@@ -343,10 +425,12 @@ impl Reader<'_> {
      * WHY:   People say times and years as two numbers; adding them ("10 30" → 40) would be wrong and writing both
      *        apart ("15 23") unreadable. A clock time wins when the first is an hour and the second can be minutes;
      *        otherwise a year needs a century from the lexicon, so "fifty fifty" stays two numbers. A pair that goes
-     *        on ("nineteen twenty five hundred", "ten thirty percent") is not a time or a year.
-     * WHERE: digits_at, before the single-phrase rules.
+     *        on ("nineteen twenty five hundred", "ten thirty percent") is not a time or a year. A pair before a
+     *        currency word ("nineteen ninety nine dollars") could be $1999 or $19.99, so the whole amount stays as
+     *        spoken rather than splitting into "19 $99".
+     * WHERE: digits_at, before the single-phrase rules; `index` is where `first` starts.
      */
-    fn clock_or_year(&self, first: &Number) -> Option<(String, usize)> {
+    fn clock_or_year(&self, index: usize, first: &Number) -> Option<(String, usize)> {
         if first.article || first.words != 1 || first.ordinal.is_some() {
             return None;
         }
@@ -366,6 +450,12 @@ impl Reader<'_> {
                 .filter(|group| group.ordinal.is_none() && group.value >= 10)?;
             (group.value, group.last)
         };
+        if let Some(at) = self
+            .next_word(last, false)
+            .filter(|at| self.currency(*at).is_some())
+        {
+            return Some((render(&self.tokens[index..=at]), at));
+        }
         let continues = self.next_word(last, false).is_some_and(|at| {
             self.is(at, self.numbers.decimal_point)
                 || self.is(at, self.numbers.percent)
@@ -413,6 +503,11 @@ impl Reader<'_> {
             text.push(numbers.decimal_separator);
             text.push_str(&number.fraction);
         }
+        if let (Some(minor), Some(currency)) = (number.minor, number.currency) {
+            let width = usize::try_from(currency.minor_digits).unwrap_or(0);
+            text.push(numbers.decimal_separator);
+            text.push_str(&format!("{minor:0width$}"));
+        }
         if let Some(scale) = number.scale_word.and_then(|at| self.tokens.get(at)) {
             text.push(' ');
             text.push_str(&scale.folded());
@@ -423,7 +518,10 @@ impl Reader<'_> {
         if number.percent {
             text.push(numbers.percent_sign);
         }
-        text
+        match number.currency {
+            Some(currency) => with_symbol(text, currency),
+            None => text,
+        }
     }
 
     /// The number word at `index`.
@@ -480,6 +578,15 @@ impl Reader<'_> {
         let joins =
             (gap.is_space() && !gap.is_line_break()) || (hyphen && gap.punct() == Some('-'));
         (joins && self.tokens.get(index + 2).is_some_and(Token::is_word)).then_some(index + 2)
+    }
+}
+
+/// `amount` with the currency's symbol on its side ("$5", "5 €").
+fn with_symbol(amount: String, currency: &CurrencyWords) -> String {
+    if currency.symbol_first {
+        format!("{}{amount}", currency.symbol)
+    } else {
+        format!("{amount} {}", currency.symbol)
     }
 }
 
@@ -602,6 +709,58 @@ mod tests {
             "a line break ends a number"
         );
         assert_eq!(run("twenty. Five"), "20. Five");
+    }
+
+    #[test]
+    fn writes_amounts_with_their_currency_symbol() {
+        let cases = [
+            ("It costs five dollars", "It costs $5"),
+            ("one dollar", "$1"),
+            ("twenty five dollars and fifty cents", "$25.50"),
+            ("twenty five dollars fifty cents", "$25.50"),
+            ("ten dollars and five cents", "$10.05"),
+            ("two hundred rupees", "\u{20b9}200"),
+            ("two hundred rupees and fifty paise", "\u{20b9}200.50"),
+            ("ten euros", "\u{20ac}10"),
+            ("a hundred dollars", "$100"),
+            ("ten thousand dollars", "$10,000"),
+            ("five million dollars", "$5 million"),
+            ("three point five billion dollars", "$3.5 billion"),
+            ("three point five dollars", "$3.5"),
+            ("five hundred yen", "\u{a5}500"),
+            ("Five Dollars.", "$5."),
+            ("5 dollars", "$5"),
+            ("1,500 rupees", "\u{20b9}1,500"),
+            ("3.50 euros", "\u{20ac}3.50"),
+            ("five dollars and fifty", "$5 and 50"),
+            ("five dollars and twenty apples", "$5 and 20 apples"),
+            (
+                "nineteen ninety nine dollars",
+                "nineteen ninety nine dollars",
+            ),
+        ];
+        for (input, expected) in cases {
+            assert_eq!(run(input), expected, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn keeps_currency_look_alikes_as_spoken() {
+        let unchanged = [
+            "Five pounds of flour.",
+            "Five apples.",
+            "dollars",
+            "a few dollars",
+            "the first dollar",
+            "$5",
+            "$5 dollars",
+            "v2 dollars",
+            "five cents",
+        ];
+        for input in unchanged {
+            assert_eq!(run(input), input, "{input:?}");
+        }
+        assert_eq!(run("fifty five cents"), "55 cents");
     }
 
     #[test]

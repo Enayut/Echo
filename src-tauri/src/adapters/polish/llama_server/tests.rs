@@ -80,6 +80,7 @@ fn context() -> PolishContext {
         cased: true,
         remove_fillers: true,
         format_lists: true,
+        spoken_symbols: true,
         dictionary: StaticList::from(Vec::new()),
     }
 }

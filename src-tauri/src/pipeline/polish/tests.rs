@@ -70,6 +70,7 @@ fn context(language: Option<&'static str>) -> PolishContext {
         cased: true,
         remove_fillers: true,
         format_lists: true,
+        spoken_symbols: true,
         dictionary: StaticList::new(&[]),
     }
 }
@@ -132,6 +133,7 @@ fn the_context_follows_the_settings_and_the_engine_caps() {
     let settings = resolve([
         (keys::REMOVE_FILLERS, SettingValue::Bool(false)),
         (keys::FORMAT_LISTS, SettingValue::Bool(false)),
+        (keys::SPOKEN_SYMBOLS, SettingValue::Bool(false)),
         (
             keys::DICTIONARY,
             SettingValue::Pairs(StaticList::from(vec![pair.clone()])),
@@ -151,6 +153,7 @@ fn the_context_follows_the_settings_and_the_engine_caps() {
     assert!(!context.cased);
     assert!(!context.remove_fillers);
     assert!(!context.format_lists);
+    assert!(!context.spoken_symbols);
     assert_eq!(&*context.dictionary, [pair]);
 }
 
@@ -244,6 +247,25 @@ fn a_model_stage_that_rewrites_a_dictionary_term_falls_back_to_the_rule_output()
     let (keeping, _) = fake_chain(FakePolish::Map(exclaim), false);
     let outcome = block_on(keeping.run("i use bridgemind", &with_term));
     assert_eq!(outcome.text, "I USE BRIDGEMIND!");
+    assert_eq!(outcome.polisher_ids, [RULES, LLM]);
+    assert!(outcome.fallbacks.is_empty());
+}
+
+#[test]
+fn a_model_stage_that_rewrites_an_address_falls_back_to_the_rule_output() {
+    // The rules fake uppercases, so its output holds the address "JOHN@GMAIL.COM".
+    let (rewriting, _) = fake_chain(FakePolish::Map(|text| text.replace('@', " at ")), false);
+    let outcome = block_on(rewriting.run("mail john@gmail.com", &context(None)));
+    assert_eq!(outcome.text, "MAIL JOHN@GMAIL.COM");
+    assert_eq!(outcome.polisher_ids, [RULES]);
+    assert_eq!(
+        reasons(&outcome.fallbacks),
+        [("fake-llm", &PolishFallbackReason::WrittenFormLost)]
+    );
+
+    let (keeping, _) = fake_chain(FakePolish::Map(exclaim), false);
+    let outcome = block_on(keeping.run("mail john@gmail.com", &context(None)));
+    assert_eq!(outcome.text, "MAIL JOHN@GMAIL.COM!");
     assert_eq!(outcome.polisher_ids, [RULES, LLM]);
     assert!(outcome.fallbacks.is_empty());
 }

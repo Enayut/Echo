@@ -35,6 +35,8 @@ pub struct PolishContext {
     pub remove_fillers: bool,
     /// `polish.format_lists`: a spoken enumeration ("first …, second …") is written as a numbered list.
     pub format_lists: bool,
+    /// `polish.spoken_symbols`: spoken symbol names ("underscore", "open bracket") are written as symbols.
+    pub spoken_symbols: bool,
     /// `polish.dictionary`: case-insensitive, whole-word replacements.
     pub dictionary: StaticList<TextPair>,
 }
@@ -84,6 +86,9 @@ pub enum PolishFallbackReason {
     EmptyOutput,
     /// A model stage rewrote or dropped a dictionary spelling its input held (pipeline/polish/dictionary_guard.rs).
     DictionaryTermLost,
+    /// A model stage rewrote or dropped an email, web address, amount or symbol its input held
+    /// (pipeline/polish/written_forms_guard.rs).
+    WrittenFormLost,
 }
 
 /// A stage whose output the chain did not use.

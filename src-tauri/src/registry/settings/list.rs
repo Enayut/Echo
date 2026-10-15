@@ -434,6 +434,19 @@ pub const SETTINGS: &[SettingSpec] = &[
         requires: None,
     },
     SettingSpec {
+        key: keys::SPOKEN_SYMBOLS,
+        section: SettingSection::Polish,
+        label: StaticStr::new("Spoken symbols"),
+        help: StaticStr::new(
+            "Write \u{201c}underscore\u{201d}, \u{201c}hashtag\u{201d} or \u{201c}open bracket\u{201d} as _, # or (.",
+        ),
+        kind: SettingKind::Bool,
+        default: SettingValue::Bool(true),
+        restart_required: false,
+        visible: true,
+        requires: None,
+    },
+    SettingSpec {
         key: keys::LLM_ENABLED,
         section: SettingSection::Polish,
         label: StaticStr::new("Grammar polish"),

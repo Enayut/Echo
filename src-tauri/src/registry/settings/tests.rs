@@ -135,6 +135,7 @@ fn every_documented_setting_is_registered() {
             "transcription.accelerator",
             "polish.remove_fillers",
             "polish.format_lists",
+            "polish.spoken_symbols",
             "polish.llm_enabled",
             "polish.llm_engine",
             "dictionary.enabled",
@@ -322,6 +323,10 @@ fn polish_reads_follow_the_stored_values_and_their_defaults() {
         format_lists(&defaults),
         "spoken lists are formatted by default"
     );
+    assert!(
+        spoken_symbols(&defaults),
+        "spoken symbols are written by default"
+    );
     assert!(trailing_space(&defaults));
     assert!(dictionary(&defaults).is_empty());
     assert_eq!(
@@ -337,6 +342,7 @@ fn polish_reads_follow_the_stored_values_and_their_defaults() {
     let chosen = SettingsSnapshot::from_resolved([
         (keys::REMOVE_FILLERS, SettingValue::Bool(false)),
         (keys::FORMAT_LISTS, SettingValue::Bool(false)),
+        (keys::SPOKEN_SYMBOLS, SettingValue::Bool(false)),
         (keys::TRAILING_SPACE, SettingValue::Bool(false)),
         (
             keys::DICTIONARY,
@@ -347,6 +353,7 @@ fn polish_reads_follow_the_stored_values_and_their_defaults() {
     ]);
     assert!(!remove_fillers(&chosen));
     assert!(!format_lists(&chosen));
+    assert!(!spoken_symbols(&chosen));
     assert!(!trailing_space(&chosen));
     assert_eq!(dictionary(&chosen), std::slice::from_ref(&pair));
     assert_eq!(

@@ -2,8 +2,9 @@
  * SOURCE OF TRUTH KEYWORDS: polish pipeline, PolishChain, PolishChains, polish_plan, polish_context, join_segments, polish chain order
  * WHAT:  Text cleanup in the pipeline: joining a take's segments (join.rs), deciding the stages and the per-take
  *        context from settings, the registry and the engine's caps (plan.rs), and running the built stages with
- *        their fallbacks and the trailing space (chain.rs), the check that a model stage kept every dictionary spelling
- *        (dictionary_guard.rs), and the one chain the app shares (shared.rs).
+ *        their fallbacks and the trailing space (chain.rs), the checks that a model stage kept every dictionary spelling
+ *        (dictionary_guard.rs) and every written address, amount and symbol (written_forms_guard.rs), and the one
+ *        chain the app shares (shared.rs).
  * WHY:   02 §8.3: one fixed order (rules, then the opt-in LLM, then the trailing space), every stage a TextPolisher
  *        the registry builds, so a new stage is an adapter plus an entry and the chain never names one. Split by
  *        responsibility like pipeline/asr.
@@ -16,6 +17,7 @@ mod dictionary_guard;
 mod join;
 mod plan;
 mod shared;
+mod written_forms_guard;
 
 #[cfg(test)]
 mod tests;

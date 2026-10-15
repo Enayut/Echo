@@ -22,9 +22,9 @@ use crate::types::{
     ModelKind, PortError, PortResult, ResourceKind, SidecarFiles, SidecarPolicy, ThinkingControl,
 };
 
-/// How Qwen3 is asked to polish (02 §8.3 stage 8, 05 A12, A16).
+/// How Qwen3 is asked to polish (02 §8.3 stage 10, 05 A12, A16).
 pub const QWEN3_POLISH: LlmPolishProfile = LlmPolishProfile {
-    system_prompt: "Fix grammar and punctuation. Keep meaning, wording and line breaks. Output only the text.",
+    system_prompt: "Fix grammar and punctuation. Keep meaning, wording, line breaks, symbols, amounts and email or web addresses. Output only the text.",
     thinking: ThinkingControl::Disable {
         marker: "/no_think",
         open: "<think>",
@@ -161,7 +161,7 @@ mod tests {
         // 02 §8.3 / 05 A12: the exact prompt, greedy, 1.5 × input, 35 %.
         assert_eq!(
             QWEN3_POLISH.system_prompt,
-            "Fix grammar and punctuation. Keep meaning, wording and line breaks. Output only the text."
+            "Fix grammar and punctuation. Keep meaning, wording, line breaks, symbols, amounts and email or web addresses. Output only the text."
         );
         assert!(QWEN3_POLISH.temperature.abs() < f32::EPSILON);
         assert_eq!(QWEN3_POLISH.max_tokens_percent, 150);

@@ -10,7 +10,7 @@
  *        itself did not start with it ("Sure, send it tomorrow" stays usable). Length is measured in characters
  *        (Unicode scalar values), not bytes, so non-English text is judged fairly. A thinking block that never
  *        closed means the answer is all reasoning: nothing is left, so it is `Empty`. Several lines in the input are
- *        a numbered list the rules wrote (02 §8.3 stage 4); a model that merges them back into prose would undo it,
+ *        a numbered list the rules wrote (02 §8.3 stage 6); a model that merges them back into prose would undo it,
  *        so a different line count keeps the rule output. Single-line input is not judged on lines.
  * WHERE: LlamaServerPolisher::polish (mod.rs) on every answer; its table test below.
  */

@@ -3,12 +3,13 @@
  * WHAT:  `format_lists` rewrites a spoken enumeration as a numbered list: "The list is as follows. First apple,
  *        second oranges, third mangoes." → "The list is as follows\n1. apple\n2. oranges\n3. mangoes". The lead-in
  *        keeps its own line, and text after the list's last sentence starts a new line.
- * WHY:   Stage 4 of 02 §8.3, behind `polish.format_lists`. Plain rules, no model, so the same words always give the
+ * WHY:   Stage 6 of 02 §8.3, behind `polish.format_lists`. Plain rules, no model, so the same words always give the
  *        same list. A wrong list is worse than a missed one, so an enumeration only counts when: its first marker
  *        opens a clause (text start, line break, pause or sentence mark before it), the markers count 1, 2, 3 …
  *        with no gap, each later marker opens a clause or follows a connector ("and fourth"), every item holds
  *        1..=`max_item_words` words, and there are at least `min_items` items. A sentence end closes the list
- *        unless the next item starts right after it, so prose after the list stays prose. That keeps "wait a
+ *        unless the next item starts right after it, so prose after the list stays prose; a dot glued between two
+ *        words ("google.com" from the addresses stage, "3.5") is no sentence end. That keeps "wait a
  *        second", "at first", "first time I went" and "first, second and third place" as spoken. Markers come from
  *        the lexicon: the NumberWords ordinals, ListWords phrases ("firstly", "first of all") and an item noun with
  *        a number ("number one", "step 2"). It runs before numbers, so "first" is still a word here and an item's
@@ -129,7 +130,11 @@ impl Markers<'_> {
             if token.is_line_break() {
                 return ItemEnd::Last { end: index };
             }
-            if token.punct().is_some_and(is_terminal) {
+            // A dot glued between two words ("google.com", "3.5") is part of them, not a sentence end.
+            let inside_word = index > 0
+                && tokens[index - 1].is_word()
+                && tokens.get(index + 1).is_some_and(Token::is_word);
+            if token.punct().is_some_and(is_terminal) && !inside_word {
                 let after = index
                     + tokens[index..]
                         .iter()
@@ -341,6 +346,10 @@ mod tests {
             (
                 "First red, second blue. Also, first cats, second dogs.",
                 "1. red\n2. blue\nAlso\n1. cats\n2. dogs",
+            ),
+            (
+                "First visit google.com, second weigh 3.5 kilos.",
+                "1. visit google.com\n2. weigh 3.5 kilos",
             ),
         ];
         for (input, expected) in cases {

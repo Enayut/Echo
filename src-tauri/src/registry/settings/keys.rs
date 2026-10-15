@@ -36,6 +36,7 @@ pub const LANGUAGE: SettingKey = SettingKey::from_static("transcription.language
 pub const ACCELERATOR: SettingKey = SettingKey::from_static("transcription.accelerator");
 pub const REMOVE_FILLERS: SettingKey = SettingKey::from_static("polish.remove_fillers");
 pub const FORMAT_LISTS: SettingKey = SettingKey::from_static("polish.format_lists");
+pub const SPOKEN_SYMBOLS: SettingKey = SettingKey::from_static("polish.spoken_symbols");
 pub const LLM_ENABLED: SettingKey = SettingKey::from_static("polish.llm_enabled");
 pub const LLM_ENGINE: SettingKey = SettingKey::from_static("polish.llm_engine");
 /// Whether the dictionary is applied to takes; off keeps the saved terms but swaps nothing.

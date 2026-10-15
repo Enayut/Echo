@@ -7,7 +7,7 @@
  *        Punctuation before the filler is left for the spacing stage, which folds ", ." into "." and drops a
  *        leading comma, so each stage stays small. A filler that opened a sentence with a capital hands the capital
  *        to the next word ("Um, so" → "So"), because casing is skipped for engines that case their own output.
- * WHERE: RulePolisher::apply (rules/mod.rs), after the dictionary and before repeats, when the context asks for it
+ * WHERE: RulePolisher::apply (rules/mod.rs), after the dictionary and before symbols, when the context asks for it
  *        and a lexicon was resolved.
  */
 

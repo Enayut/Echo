@@ -1,19 +1,22 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: RulePolisher, rule polish, rule stages, dictionary fillers repeats lists numbers spacing casing, Instant polisher, always-on polish
+ * SOURCE OF TRUTH KEYWORDS: RulePolisher, rule polish, rule stages, dictionary fillers symbols addresses repeats lists numbers spacing casing, Instant polisher, always-on polish
  * WHAT:  RulePolisher: the always-on TextPolisher (latency class Instant, no model, any language) that runs the rule
- *        stages of 02 §8.3 in their fixed order: dictionary, fillers, repeats, lists, numbers, spacing and
- *        punctuation, casing.
+ *        stages of 02 §8.3 in their fixed order: dictionary, fillers, symbols, addresses, repeats, lists, numbers,
+ *        spacing and punctuation, casing.
  * WHY:   Rule cleanup must cost microseconds (02 §6.2: < 5 ms for the whole chain), so it is plain Rust over one token
  *        list, one file per stage. Language-specific data lives in lexicon.rs, so a language is a data change. The
- *        stages read only the PolishContext: fillers only when `remove_fillers`, lists only when `format_lists` and
- *        the lexicon has list words, numbers only when the lexicon has number words, casing only when the engine
- *        does not case (`cased`). The compiled dictionary is cached and rebuilt only when the user's pairs change, because the
+ *        stages read only the PolishContext: fillers only when `remove_fillers`, symbols only when `spoken_symbols`
+ *        and the lexicon has symbol words, addresses only when the lexicon has address words, lists only when
+ *        `format_lists` and the lexicon has list words, numbers only when the lexicon has number words, casing only
+ *        when the engine does not case (`cased`). Addresses run before repeats, which would collapse a spelled
+ *        "w w w" to "w". The compiled dictionary is cached and rebuilt only when the user's pairs change, because the
  *        context carries the pairs on every take. `polish` never fails: rules always produce text (possibly empty
  *        when the take held nothing but fillers).
  * WHERE: Built by the `rules` registry engine entry (registry/engines.rs); run first by the polish chain
  *        (pipeline/polish).
  */
 
+mod addresses;
 mod casing;
 mod dictionary;
 mod fillers;
@@ -22,6 +25,7 @@ mod lists;
 mod numbers;
 mod repeats;
 mod spacing;
+mod symbols;
 mod text;
 
 #[cfg(test)]
@@ -32,9 +36,9 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 
 use self::{
-    casing::apply_casing, dictionary::CompiledDictionary, fillers::remove_fillers,
-    lists::format_lists, numbers::write_numbers, repeats::collapse_repeats,
-    spacing::normalize_spacing,
+    addresses::write_addresses, casing::apply_casing, dictionary::CompiledDictionary,
+    fillers::remove_fillers, lists::format_lists, numbers::write_numbers,
+    repeats::collapse_repeats, spacing::normalize_spacing, symbols::write_symbols,
 };
 use crate::{
     ports::TextPolisher,
@@ -70,6 +74,14 @@ impl RulePolisher {
             && let Some(lexicon) = lexicon
         {
             tokens = remove_fillers(&tokens, lexicon);
+        }
+        if context.spoken_symbols
+            && let Some(words) = lexicon.and_then(|lexicon| lexicon.symbols)
+        {
+            tokens = write_symbols(&tokens, words);
+        }
+        if let Some(words) = lexicon.and_then(|lexicon| lexicon.addresses) {
+            tokens = write_addresses(&tokens, words);
         }
         tokens = collapse_repeats(&tokens, lexicon);
         if context.format_lists

@@ -2,7 +2,7 @@
  * SOURCE OF TRUTH KEYWORDS: repeats stage, collapse repeated words, stutter removal, the the, hyphen stutter, keep repeats, comma repeats
  * WHAT:  `collapse_repeats` removes stutters ("th- the", "b-but", "I- I think") in any language, then, when the
  *        lexicon allows it, doubled words ("the the" → "the", "I, I think" → "I think").
- * WHY:   Stage 3 of 02 §8.3. A stutter is a fragment the next word starts with, written with a dash; that shape is
+ * WHY:   Stage 5 of 02 §8.3. A stutter is a fragment the next word starts with, written with a dash; that shape is
  *        orthographic, so it is safe in every language. Joined forms need care: "re-read", "so-so" and "no-no" are
  *        words, so a joined fragment only goes when it is one letter ("b-but") or repeated ("th-th-the"). Doubled
  *        words are language-specific ("had had", "that that" are grammatical English; German "die die" and French
@@ -10,7 +10,7 @@
  *        and across a comma only for its short function words. Numbers are never touched ("10 10" may be data),
  *        nor are the lexicon's number words ("twenty twenty" is a year for the numbers stage, which runs after
  *        lists). The first spelling is kept, and a fragment's capital moves to the word that stays ("B-but" → "But").
- * WHERE: RulePolisher::apply (rules/mod.rs), after fillers and before lists and numbers.
+ * WHERE: RulePolisher::apply (rules/mod.rs), after fillers, symbols and addresses, before lists and numbers.
  */
 
 use super::{
