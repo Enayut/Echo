@@ -1,5 +1,5 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: typed setting reads, pill_look, pill_dragged_position, sound_cues, notice_shown, onboarded, launch_at_startup, start_minimized, debug_log, theme read, transcription reads, polish reads, remove_fillers, dictionary, llm_polisher, trailing_space, delivery_policy, input_device, session_policy, record_mode, retention_policy, typing_wpm, auto_check_updates
+ * SOURCE OF TRUTH KEYWORDS: typed setting reads, pill_look, pill_dragged_position, sound_cues, notice_shown, onboarded, launch_at_startup, start_minimized, debug_log, theme read, transcription reads, polish reads, remove_fillers, format_lists, dictionary, llm_polisher, trailing_space, delivery_policy, input_device, session_policy, record_mode, retention_policy, typing_wpm, auto_check_updates
  * WHAT:  Typed reads of a SettingsSnapshot for the settings the core acts on.
  * WHY:   Values are stored as tagged SettingValues and enum text; spelling them is the registry's job, so the
  *        pipeline asks here instead of matching kinds or comparing strings. A resolved snapshot always holds a
@@ -102,10 +102,10 @@ pub(super) const fn accelerator_value(accelerator: Accelerator) -> &'static str 
 }
 
 /**
- * SOURCE OF TRUTH KEYWORDS: remove_fillers setting, dictionary setting, dictionary enabled, llm_polisher, trailing_space, polish settings read
- * WHAT:  Typed reads of the polish and output settings the polish chain acts on: whether fillers are removed, the
- *        dictionary pairs to apply (none while the dictionary is off), the model polisher to run (None while
- *        grammar polish is off) and the trailing space.
+ * SOURCE OF TRUTH KEYWORDS: remove_fillers setting, format_lists setting, dictionary setting, dictionary enabled, llm_polisher, trailing_space, polish settings read
+ * WHAT:  Typed reads of the polish and output settings the polish chain acts on: whether fillers are removed and
+ *        spoken lists formatted, the dictionary pairs to apply (none while the dictionary is off), the model
+ *        polisher to run (None while grammar polish is off) and the trailing space.
  * WHY:   The chain is built from the registry and these reads (02 §8.3), so the pipeline never matches a
  *        SettingValue kind. The model polisher id is only a choice: whether it is registered and built is decided
  *        where the chain is built (pipeline/polish), which falls back to the rule output when it is not.
@@ -113,6 +113,11 @@ pub(super) const fn accelerator_value(accelerator: Accelerator) -> &'static str 
  */
 pub fn remove_fillers(settings: &SettingsSnapshot) -> bool {
     bool_or_default(settings, &keys::REMOVE_FILLERS)
+}
+
+/// `polish.format_lists`: write a spoken enumeration as a numbered list.
+pub fn format_lists(settings: &SettingsSnapshot) -> bool {
+    bool_or_default(settings, &keys::FORMAT_LISTS)
 }
 
 /// The `dictionary.entries` pairs to apply, in the order the user entered them; none while `dictionary.enabled`

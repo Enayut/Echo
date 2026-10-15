@@ -45,6 +45,7 @@ pub fn polish_context(
         punctuated: caps.punctuation,
         cased: caps.casing,
         remove_fillers: registry::settings::remove_fillers(settings),
+        format_lists: registry::settings::format_lists(settings),
         dictionary: StaticList::from(registry::settings::dictionary(settings).to_vec()),
     }
 }

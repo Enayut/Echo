@@ -134,6 +134,7 @@ fn every_documented_setting_is_registered() {
             "transcription.language",
             "transcription.accelerator",
             "polish.remove_fillers",
+            "polish.format_lists",
             "polish.llm_enabled",
             "polish.llm_engine",
             "dictionary.enabled",
@@ -317,6 +318,10 @@ fn validate_checks_the_key_the_kind_and_runtime_membership() {
 fn polish_reads_follow_the_stored_values_and_their_defaults() {
     let defaults = defaults();
     assert!(remove_fillers(&defaults));
+    assert!(
+        format_lists(&defaults),
+        "spoken lists are formatted by default"
+    );
     assert!(trailing_space(&defaults));
     assert!(dictionary(&defaults).is_empty());
     assert_eq!(
@@ -331,6 +336,7 @@ fn polish_reads_follow_the_stored_values_and_their_defaults() {
     };
     let chosen = SettingsSnapshot::from_resolved([
         (keys::REMOVE_FILLERS, SettingValue::Bool(false)),
+        (keys::FORMAT_LISTS, SettingValue::Bool(false)),
         (keys::TRAILING_SPACE, SettingValue::Bool(false)),
         (
             keys::DICTIONARY,
@@ -340,6 +346,7 @@ fn polish_reads_follow_the_stored_values_and_their_defaults() {
         (keys::LLM_ENGINE, SettingValue::Enum(text("sample-llm"))),
     ]);
     assert!(!remove_fillers(&chosen));
+    assert!(!format_lists(&chosen));
     assert!(!trailing_space(&chosen));
     assert_eq!(dictionary(&chosen), std::slice::from_ref(&pair));
     assert_eq!(

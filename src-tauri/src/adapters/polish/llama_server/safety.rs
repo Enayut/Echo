@@ -1,15 +1,17 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: LLM safety filter, strip think block, preamble check, length change 35 percent, cut off answer, reject LLM output, Rejection
+ * SOURCE OF TRUTH KEYWORDS: LLM safety filter, strip think block, preamble check, length change 35 percent, cut off answer, reject LLM output, Rejection, list lines kept
  * WHAT:  `accept(profile, input, answer, finish)`: the text the chain may use from a model's answer, or why it must
  *        not be used (Rejection). Removes reasoning blocks and wrapping quotes the input did not have, then refuses
- *        an answer that was cut off, is empty, opens with a preamble the input did not, or whose length differs
- *        from the input's by more than the profile allows.
+ *        an answer that was cut off, is empty, opens with a preamble the input did not, whose length differs
+ *        from the input's by more than the profile allows, or that changed the line count of a multi-line input.
  * WHY:   05 A12/A16: a small model may think aloud, answer a question found in the text, greet the user or
  *        rewrite far more than grammar; any of those must never reach the user's document. A rejected answer is a
  *        stage failure, so the chain keeps the rule output (02 §8.3). A preamble only counts when the dictation
  *        itself did not start with it ("Sure, send it tomorrow" stays usable). Length is measured in characters
  *        (Unicode scalar values), not bytes, so non-English text is judged fairly. A thinking block that never
- *        closed means the answer is all reasoning: nothing is left, so it is `Empty`.
+ *        closed means the answer is all reasoning: nothing is left, so it is `Empty`. Several lines in the input are
+ *        a numbered list the rules wrote (02 §8.3 stage 4); a model that merges them back into prose would undo it,
+ *        so a different line count keeps the rule output. Single-line input is not judged on lines.
  * WHERE: LlamaServerPolisher::polish (mod.rs) on every answer; its table test below.
  */
 
@@ -26,6 +28,8 @@ pub(super) enum Rejection {
     Preamble,
     /// The answer is this many percent longer or shorter than the input.
     LengthChange { percent: u32 },
+    /// The input had several lines (a numbered list) and the answer has a different number of them.
+    LinesChanged { before: usize, after: usize },
 }
 
 /// How generation ended, as the runtime reports it.
@@ -63,7 +67,19 @@ pub(super) fn accept(
     if percent > u32::from(profile.safety.max_length_change_percent) {
         return Err(Rejection::LengthChange { percent });
     }
+    let (lines_before, lines_after) = (line_count(input), line_count(text));
+    if lines_before > 1 && lines_after != lines_before {
+        return Err(Rejection::LinesChanged {
+            before: lines_before,
+            after: lines_after,
+        });
+    }
     Ok(text.to_owned())
+}
+
+/// The lines of `text` that hold something.
+fn line_count(text: &str) -> usize {
+    text.lines().filter(|line| !line.trim().is_empty()).count()
 }
 
 /// `answer` without any reasoning block; an unclosed block runs to the end of the answer.
@@ -229,6 +245,21 @@ mod tests {
             "Ich glaube, das ist richtig.",
             Finish::Complete,
             Ok("Ich glaube, das ist richtig."),
+        ),
+        (
+            "we need\n1. milk\n2. bread",
+            "We need:\n1. Milk\n2. Bread",
+            Finish::Complete,
+            Ok("We need:\n1. Milk\n2. Bread"),
+        ),
+        (
+            "we need\n1. milk\n2. bread",
+            "We need 1. milk 2. bread.",
+            Finish::Complete,
+            Err(Rejection::LinesChanged {
+                before: 3,
+                after: 1,
+            }),
         ),
     ];
 

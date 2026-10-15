@@ -1,5 +1,5 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: rule polisher tokens, Token, TokenKind, tokenize, render, word token, punctuation token, capitalize first letter
+ * SOURCE OF TRUTH KEYWORDS: rule polisher tokens, Token, TokenKind, tokenize, render, word token, punctuation token, capitalize first letter, phrase_end
  * WHAT:  The token model the rule stages share: `tokenize` splits text into words, whitespace runs and single
  *        punctuation characters; `render` joins them back; small helpers classify punctuation and change a word's
  *        first letter.
@@ -8,8 +8,8 @@
  *        apostrophes (`don't`, `I'm`, `it’s`), so contractions stay one word. Every punctuation character is its own
  *        token, so `...` is three `.` tokens and stages can tell an ellipsis from a full stop. `tokenize` followed by
  *        `render` returns the input unchanged, so a stage that changes nothing changes nothing.
- * WHERE: rules/mod.rs tokenizes once after the dictionary stage; fillers.rs, repeats.rs, spacing.rs, casing.rs and
- *        lexicon.rs read and rewrite the tokens.
+ * WHERE: rules/mod.rs tokenizes once after the dictionary stage; fillers.rs, repeats.rs, lists.rs, spacing.rs,
+ *        casing.rs and lexicon.rs read and rewrite the tokens.
  */
 
 /// What a token holds.
@@ -159,4 +159,23 @@ pub fn next_significant(tokens: &[Token], index: usize) -> Option<usize> {
         .iter()
         .position(|token| !token.is_space())
         .map(|offset| index + offset)
+}
+
+/// The end (exclusive) of `phrase` when its lowercase words start at `index`, separated by single-line whitespace.
+pub fn phrase_end(tokens: &[Token], index: usize, phrase: &[&str]) -> Option<usize> {
+    let mut cursor = index;
+    for (position, word) in phrase.iter().enumerate() {
+        if position > 0 {
+            tokens
+                .get(cursor)
+                .filter(|token| token.is_space() && !token.is_line_break())?;
+            cursor += 1;
+        }
+        let token = tokens.get(cursor).filter(|token| token.is_word())?;
+        if token.folded() != *word {
+            return None;
+        }
+        cursor += 1;
+    }
+    Some(cursor)
 }

@@ -8,9 +8,9 @@
  *        words are language-specific ("had had", "that that" are grammatical English; German "die die" and French
  *        "nous nous" are too), so they collapse only for a lexicon that opts in, never for words on its keep list,
  *        and across a comma only for its short function words. Numbers are never touched ("10 10" may be data),
- *        nor are the lexicon's number words ("twenty twenty" is a year for the numbers stage, which runs next).
- *        The first spelling is kept, and a fragment's capital moves to the word that stays ("B-but" → "But").
- * WHERE: RulePolisher::apply (rules/mod.rs), after fillers and before numbers.
+ *        nor are the lexicon's number words ("twenty twenty" is a year for the numbers stage, which runs after
+ *        lists). The first spelling is kept, and a fragment's capital moves to the word that stays ("B-but" → "But").
+ * WHERE: RulePolisher::apply (rules/mod.rs), after fillers and before lists and numbers.
  */
 
 use super::{

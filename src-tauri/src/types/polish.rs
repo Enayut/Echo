@@ -33,6 +33,8 @@ pub struct PolishContext {
     pub cased: bool,
     /// `polish.remove_fillers`.
     pub remove_fillers: bool,
+    /// `polish.format_lists`: a spoken enumeration ("first …, second …") is written as a numbered list.
+    pub format_lists: bool,
     /// `polish.dictionary`: case-insensitive, whole-word replacements.
     pub dictionary: StaticList<TextPair>,
 }

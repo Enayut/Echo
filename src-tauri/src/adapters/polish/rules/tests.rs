@@ -34,6 +34,7 @@ fn context(cased: bool) -> PolishContext {
         punctuated: true,
         cased,
         remove_fillers: true,
+        format_lists: true,
         dictionary: pairs(&[("cloud code", "Claude Code")]),
     }
 }
@@ -110,6 +111,42 @@ fn fillers_stay_when_the_setting_is_off() {
         "the end",
         "repeats do not depend on the filler setting"
     );
+}
+
+#[test]
+fn spoken_lists_compose_with_the_other_stages() {
+    let polisher = RulePolisher::new();
+    let cases: &[(&PolishContext, &str, &str)] = &[
+        (
+            &context(true),
+            "The list of grocery items are as follows. First apple, second oranges. Third mangoes, Fourth watermelon.",
+            "The list of grocery items are as follows\n1. apple\n2. oranges\n3. mangoes\n4. watermelon",
+        ),
+        (
+            &context(true),
+            "Um, the plan is. First, uh, twenty five chairs, second the the tables. Then we eat.",
+            "The plan is\n1. 25 chairs\n2. the tables\nThen we eat.",
+        ),
+        (
+            &context(false),
+            "we need. first milk, second bread",
+            "We need\n1. Milk\n2. Bread",
+        ),
+    ];
+    for (context, input, expected) in cases {
+        assert_eq!(polisher.apply(input, context), *expected, "{input}");
+    }
+}
+
+#[test]
+fn lists_stay_prose_when_the_setting_is_off() {
+    let polisher = RulePolisher::new();
+    let context = PolishContext {
+        format_lists: false,
+        ..context(true)
+    };
+    let spoken = "We need. First milk, second bread.";
+    assert_eq!(polisher.apply(spoken, &context), spoken);
 }
 
 #[test]

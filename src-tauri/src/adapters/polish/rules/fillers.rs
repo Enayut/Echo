@@ -14,7 +14,7 @@
 use super::{
     lexicon::Lexicon,
     text::{
-        Token, capitalize_first, is_dash, is_pause, is_terminal, next_significant,
+        Token, capitalize_first, is_dash, is_pause, is_terminal, next_significant, phrase_end,
         previous_significant,
     },
 };
@@ -69,25 +69,6 @@ fn filler_end(tokens: &[Token], index: usize, lexicon: &Lexicon) -> Option<usize
         .iter()
         .find_map(|phrase| phrase_end(tokens, index, phrase))
         .filter(|end| at_clause_edge(tokens, index, *end))
-}
-
-/// The end of `phrase` when its words start at `index`, separated by single-line whitespace.
-fn phrase_end(tokens: &[Token], index: usize, phrase: &[&str]) -> Option<usize> {
-    let mut cursor = index;
-    for (position, word) in phrase.iter().enumerate() {
-        if position > 0 {
-            tokens
-                .get(cursor)
-                .filter(|token| token.is_space() && !token.is_line_break())?;
-            cursor += 1;
-        }
-        let token = tokens.get(cursor).filter(|token| token.is_word())?;
-        if token.folded() != *word {
-            return None;
-        }
-        cursor += 1;
-    }
-    Some(cursor)
 }
 
 /// Tokens `start..end` stand between clause boundaries.

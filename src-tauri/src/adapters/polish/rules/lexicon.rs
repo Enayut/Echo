@@ -1,9 +1,9 @@
 /*!
- * SOURCE OF TRUTH KEYWORDS: Lexicon, LEXICONS, filler words, edge fillers, keep repeats, abbreviations, number words, language detection markers, resolve lexicon
+ * SOURCE OF TRUTH KEYWORDS: Lexicon, LEXICONS, filler words, edge fillers, keep repeats, abbreviations, number words, list words, language detection markers, resolve lexicon
  * WHAT:  The per-language data the rule stages use (fillers, clause-edge filler phrases, words whose doubling is
- *        grammatical, abbreviations, words always capitalized, spoken number words) and `resolve`, which picks the
- *        lexicon for a take:
- *        the language the context names, otherwise the one whose marker words the text uses most.
+ *        grammatical, abbreviations, words always capitalized, spoken number words, spoken list markers) and
+ *        `resolve`, which picks the lexicon for a take: the language the context names, otherwise the one whose
+ *        marker words the text uses most.
  * WHY:   Adding a language is a data change: a new LEXICONS row, no stage code (02 §8.3). Language-specific rules
  *        are dangerous in the wrong language: English fillers "um" and "er" are real words in German, Dutch,
  *        Danish and Portuguese, and "i" is a word in Italian and Polish. Parakeet auto-detects and reports no
@@ -12,7 +12,8 @@
  *        exist only to win that vote and switch the English rules off. A tie between languages turns every
  *        language rule off. Text with no marker at all (a short reply such as "Um, okay.") gets the first row,
  *        English, the language of Echo's filler list and UI; a language picked in Settings always wins over the vote.
- * WHERE: rules/mod.rs resolves once per take; fillers.rs, repeats.rs, numbers.rs and casing.rs read the chosen row.
+ * WHERE: rules/mod.rs resolves once per take; fillers.rs, repeats.rs, lists.rs, numbers.rs and casing.rs read the
+ *        chosen row.
  */
 
 use std::ops::RangeInclusive;
@@ -42,6 +43,8 @@ pub struct Lexicon {
     pub capitalized: &'static [&'static str],
     /// Spoken number words written as digits; `None` leaves numbers as the engine wrote them.
     pub numbers: Option<&'static NumberWords>,
+    /// Spoken list markers turned into a numbered list; `None` leaves enumerations as prose.
+    pub lists: Option<&'static ListWords>,
 }
 
 impl Lexicon {
@@ -58,6 +61,7 @@ impl Lexicon {
             abbreviations: &[],
             capitalized: &[],
             numbers: None,
+            lists: None,
         }
     }
 
@@ -121,6 +125,7 @@ pub const LEXICONS: &[Lexicon] = &[
         ],
         capitalized: &["i"],
         numbers: Some(&ENGLISH_NUMBERS),
+        lists: Some(&ENGLISH_LISTS),
     },
     Lexicon::markers_only(
         "de",
@@ -359,6 +364,56 @@ const ENGLISH_NUMBERS: NumberWords = NumberWords {
 };
 
 /**
+ * SOURCE OF TRUTH KEYWORDS: ListWords, ENGLISH_LISTS, spoken list markers, firstly secondly, first of all, number one, step two, list connectors, list item limits
+ * WHAT:  One language's spoken list vocabulary, read by the lists stage (lists.rs): marker phrases beyond the
+ *        NumberWords ordinals, the nouns said before an item's number, the words that may join a later marker to
+ *        the item before it, how many items make a list, how long one item may be, and the mark after its number.
+ * WHY:   Spoken enumerations are language data like number words, so another language is a new ListWords value,
+ *        not new stage code. The ordinals themselves ("first", "second") are not repeated here: they come from the
+ *        row's NumberWords, so one table holds them. `min_items` and `max_item_words` are what keep prose prose: a
+ *        lone "first" is not a list, and an "item" that runs on for a paragraph is an argument, not a list entry.
+ * WHERE: `Lexicon.lists`; read by lists.rs.
+ */
+pub struct ListWords {
+    /// Phrases that open the item at a place, besides the ordinal words ("firstly", "first of all").
+    pub phrases: &'static [(&'static [&'static str], u64)],
+    /// Words said before an item's number ("number one", "step 2").
+    pub item_nouns: &'static [&'static str],
+    /// Words that may join a later marker to the item before it ("and fourth", "then fifth").
+    pub connectors: &'static [&'static str],
+    /// Fewest items that make a list.
+    pub min_items: usize,
+    /// Most words one item may hold; a longer one is prose and the whole enumeration stays as spoken.
+    pub max_item_words: usize,
+    /// The mark written after an item's number ("1.").
+    pub number_mark: char,
+}
+
+/// English list words.
+const ENGLISH_LISTS: ListWords = ListWords {
+    phrases: &[
+        (&["first", "of", "all"], 1),
+        (&["first", "and", "foremost"], 1),
+        (&["first", "off"], 1),
+        (&["firstly"], 1),
+        (&["secondly"], 2),
+        (&["thirdly"], 3),
+        (&["fourthly"], 4),
+        (&["fifthly"], 5),
+        (&["sixthly"], 6),
+        (&["seventhly"], 7),
+        (&["eighthly"], 8),
+        (&["ninthly"], 9),
+        (&["tenthly"], 10),
+    ],
+    item_nouns: &["number", "step", "item"],
+    connectors: &["and", "then"],
+    min_items: 2,
+    max_item_words: 30,
+    number_mark: '.',
+};
+
+/**
  * SOURCE OF TRUTH KEYWORDS: resolve lexicon, language vote, marker score, language-specific rules switch
  * WHAT:  The lexicon for a take: the row of `language` when the context names one (None when no row exists, so
  *        only the universal rules run), otherwise the unique best marker score among `tokens`' words, otherwise
@@ -433,10 +488,19 @@ mod tests {
                     .chain(numbers.articles.iter().copied())
                     .chain([numbers.joiner, numbers.decimal_point, numbers.percent])
             });
+            let list_words = lexicon.lists.into_iter().flat_map(|words| {
+                words
+                    .phrases
+                    .iter()
+                    .flat_map(|(phrase, _)| phrase.iter().copied())
+                    .chain(words.item_nouns.iter().copied())
+                    .chain(words.connectors.iter().copied())
+            });
             for word in lists
                 .iter()
                 .flat_map(|list| list.iter().copied())
                 .chain(number_words)
+                .chain(list_words)
             {
                 assert_eq!(word, word.to_lowercase(), "{} {word}", lexicon.language);
             }
@@ -520,6 +584,17 @@ mod tests {
                     numbers.ordinal(ordinal).is_some(),
                     "{ordinal} is no ordinal"
                 );
+            }
+        }
+    }
+
+    #[test]
+    fn list_words_are_well_formed() {
+        for words in LEXICONS.iter().filter_map(|lexicon| lexicon.lists) {
+            assert!(words.min_items >= 2, "one item is never a list");
+            assert!(words.max_item_words >= 1);
+            for (phrase, place) in words.phrases {
+                assert!(!phrase.is_empty() && *place >= 1, "{phrase:?}");
             }
         }
     }

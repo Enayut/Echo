@@ -146,6 +146,7 @@ mod tests {
             punctuated: true,
             cased: true,
             remove_fillers: true,
+            format_lists: true,
             dictionary: StaticList::from(Vec::new()),
         }
     }

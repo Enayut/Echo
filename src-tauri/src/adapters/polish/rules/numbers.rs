@@ -4,7 +4,7 @@
  *        "25", "one thousand five hundred twenty three" and "fifteen twenty three" → "1523", "ten thirty" →
  *        "10:30", "three point five" → "3.5", "fifty percent" → "50%", "twenty first" → "21st", "two million" →
  *        "2 million", "ten thousand" → "10,000".
- * WHY:   Stage 4 of 02 §8.3. Speech engines (Parakeet) spell numbers out; a typist writes digits. Only a whole
+ * WHY:   Stage 5 of 02 §8.3. Speech engines (Parakeet) spell numbers out; a typist writes digits. Only a whole
  *        phrase the reader understands is rewritten, anything else stays as spoken. A lone word below `digits_from`
  *        stays a word ("one of them", "five apples"), a phrase ending in an ambiguous ordinal stays ("a twenty
  *        second clip"), and an article with one scale word stays ("a hundred people"), because only a longer phrase
@@ -13,8 +13,8 @@
  *        numbers in a row are a clock time or a year, never a sum. The digits are re-tokenized, so later stages
  *        see "3.5" and "10:30" exactly as if the engine had written them. Values use checked arithmetic: a phrase
  *        too large for u64 stays in words.
- * WHERE: RulePolisher::apply (rules/mod.rs), after repeats (which keep doubled number words) and before spacing
- *        and casing, when the take's lexicon has NumberWords.
+ * WHERE: RulePolisher::apply (rules/mod.rs), after repeats (which keep doubled number words) and lists, before
+ *        spacing and casing, when the take's lexicon has NumberWords.
  */
 
 use super::{

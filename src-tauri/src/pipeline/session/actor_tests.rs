@@ -487,8 +487,8 @@ fn a_full_take_is_transcribed_polished_pasted_and_stored() {
 #[test]
 fn esc_then_esc_resumes_and_keeps_the_text_from_both_sides() {
     let rig = Rig::start();
-    rig.engine.push_text("First part.");
-    rig.engine.push_text("Second part.");
+    rig.engine.push_text("Before the pause.");
+    rig.engine.push_text("After the pause.");
     let take = rig.record();
     rig.feed(&speech(400));
     rig.feed(&silence(700));
@@ -509,7 +509,10 @@ fn esc_then_esc_resumes_and_keeps_the_text_from_both_sides() {
     let (done, _) = rig.wait_for(SessionStatus::Done);
     assert_eq!(done.outcome, Some(DeliveryOutcome::Pasted));
     let row = transcripts::get::get(&rig.db, take).unwrap();
-    assert_eq!(row.final_text.as_deref(), Some("First part. Second part."));
+    assert_eq!(
+        row.final_text.as_deref(),
+        Some("Before the pause. After the pause.")
+    );
     assert_eq!(rig.hotkeys.binding(&CANCEL), None);
 }
 

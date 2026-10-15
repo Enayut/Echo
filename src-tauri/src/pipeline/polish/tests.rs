@@ -69,6 +69,7 @@ fn context(language: Option<&'static str>) -> PolishContext {
         punctuated: true,
         cased: true,
         remove_fillers: true,
+        format_lists: true,
         dictionary: StaticList::new(&[]),
     }
 }
@@ -130,6 +131,7 @@ fn the_context_follows_the_settings_and_the_engine_caps() {
     };
     let settings = resolve([
         (keys::REMOVE_FILLERS, SettingValue::Bool(false)),
+        (keys::FORMAT_LISTS, SettingValue::Bool(false)),
         (
             keys::DICTIONARY,
             SettingValue::Pairs(StaticList::from(vec![pair.clone()])),
@@ -148,6 +150,7 @@ fn the_context_follows_the_settings_and_the_engine_caps() {
     assert!(context.punctuated);
     assert!(!context.cased);
     assert!(!context.remove_fillers);
+    assert!(!context.format_lists);
     assert_eq!(&*context.dictionary, [pair]);
 }
 

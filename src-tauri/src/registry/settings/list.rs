@@ -421,6 +421,19 @@ pub const SETTINGS: &[SettingSpec] = &[
         requires: None,
     },
     SettingSpec {
+        key: keys::FORMAT_LISTS,
+        section: SettingSection::Polish,
+        label: StaticStr::new("Format spoken lists"),
+        help: StaticStr::new(
+            "Write \u{201c}first \u{2026}, second \u{2026}, third \u{2026}\u{201d} as a numbered list.",
+        ),
+        kind: SettingKind::Bool,
+        default: SettingValue::Bool(true),
+        restart_required: false,
+        visible: true,
+        requires: None,
+    },
+    SettingSpec {
         key: keys::LLM_ENABLED,
         section: SettingSection::Polish,
         label: StaticStr::new("Grammar polish"),
